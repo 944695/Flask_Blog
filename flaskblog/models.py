@@ -1,7 +1,6 @@
 from datetime import datetime
 from flaskblog import db, login_manager
 from flask_login import UserMixin
-from sqlalchemy.sql import func
 
 
 @login_manager.user_loader
@@ -30,21 +29,3 @@ class Post(db.Model):
 
     def __repr__(self):
         return f"Post('{self.title}', '{self.date_posted}')"
-    
-class Comment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    text = db.Column(db.String(200), nullable=False)
-    date_created = db.Column(db.DateTime(timezone=True), default=func.now())
-    author = db.Column(db.Integer, db.ForeignKey(
-        'user.id', ondelete="CASCADE"), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey(
-        'post.id', ondelete="CASCADE"), nullable=False)
-
-
-class Like(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date_created = db.Column(db.DateTime(timezone=True), default=func.now())
-    author = db.Column(db.Integer, db.ForeignKey(
-        'user.id', ondelete="CASCADE"), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey(
-        'post.id', ondelete="CASCADE"), nullable=False)
