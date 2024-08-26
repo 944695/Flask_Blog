@@ -1,7 +1,8 @@
 import os
 import secrets
+import uuid
 from PIL import Image
-from flask import render_template, url_for, flash, redirect, request, abort
+from flask import render_template, url_for, flash, redirect, request, abort, session
 from flaskblog import app, db, bcrypt
 from flaskblog.forms import RegistrationForm, LoginForm, UpdateAccountForm, PostForm
 from flaskblog.models import User, Post
@@ -13,11 +14,15 @@ from flask_login import login_user, current_user, logout_user, login_required
 def home():
     page = request.args.get('page', 1, type=int)
     posts = Post.query.order_by(Post.date_posted.desc()).paginate(page=page, per_page=5)
+    session["ctx"] = {"request_id": str(uuid.uuid4())}
+    app.logger.info("A user visited the home page >>> %s", session["ctx"])
     return render_template('home.html', posts=posts)
 
 
 @app.route("/about")
 def about():
+    session["ctx"] = {"request_id": str(uuid.uuid4())}
+    app.logger.info("A user visited the about page >>> %s", session["ctx"])
     return render_template('about.html', title='About')
 
 
@@ -32,12 +37,16 @@ def register():
         db.session.add(user)
         db.session.commit()
         flash('Your account has been created! You are now able to log in', 'success')
+        session["ctx"] = {"request_id": str(uuid.uuid4())}
+        app.logger.info("A new user has been registered >>> %s", session["ctx"])
         return redirect(url_for('login'))
     return render_template('register.html', title='Register', form=form)
 
 
 @app.route("/login", methods=['GET', 'POST'])
 def login():
+    session["ctx"] = {"request_id": str(uuid.uuid4())}
+    app.logger.info("A user visited the login page >>> %s", session["ctx"])
     if current_user.is_authenticated:
         return redirect(url_for('home'))
     form = LoginForm()
@@ -46,15 +55,21 @@ def login():
         if user and bcrypt.check_password_hash(user.password, form.password.data):
             login_user(user, remember=form.remember.data)
             next_page = request.args.get('next')
+            session["ctx"] = {"request_id": str(uuid.uuid4())}
+            app.logger.info("A user was able to login >>> %s", session["ctx"])
             return redirect(next_page) if next_page else redirect(url_for('home'))
         else:
             flash('Login Unsuccessful. Please check email and password', 'danger')
+            session["ctx"] = {"request_id": str(uuid.uuid4())}
+            app.logger.info("A user was not able to login >>> %s", session["ctx"])
     return render_template('login.html', title='Login', form=form)
 
 
 @app.route("/logout")
 def logout():
     logout_user()
+    session["ctx"] = {"request_id": str(uuid.uuid4())}
+    app.logger.info("The user has logged out >>> %s", session["ctx"])
     return redirect(url_for('home'))
 
 
@@ -68,7 +83,8 @@ def save_picture(form_picture):
     i = Image.open(form_picture)
     i.thumbnail(output_size)
     i.save(picture_path)
-
+    session["ctx"] = {"request_id": str(uuid.uuid4())}
+    app.logger.info("A user uploaded a new picture >>> %s", session["ctx"])
     return picture_fn
 
 
@@ -84,6 +100,8 @@ def account():
         current_user.email = form.email.data
         db.session.commit()
         flash('Your account has been updated!', 'success')
+        session["ctx"] = {"request_id": str(uuid.uuid4())}
+        app.logger.info("A user updated their account >>> %s", session["ctx"])
         return redirect(url_for('account'))
     elif request.method == 'GET':
         form.username.data = current_user.username
@@ -102,6 +120,8 @@ def new_post():
         db.session.add(post)
         db.session.commit()
         flash('Your post has been created!', 'success')
+        session["ctx"] = {"request_id": str(uuid.uuid4())}
+        app.logger.info("A user created a new post >>> %s", session["ctx"])
         return redirect(url_for('home'))
     return render_template('create_post.html', title='New Post',
                            form=form, legend='New Post')
@@ -125,6 +145,8 @@ def update_post(post_id):
         post.content = form.content.data
         db.session.commit()
         flash('Your post has been updated!', 'success')
+        session["ctx"] = {"request_id": str(uuid.uuid4())}
+        app.logger.info("A user updated a post >>> %s", session["ctx"])
         return redirect(url_for('post', post_id=post.id))
     elif request.method == 'GET':
         form.title.data = post.title
@@ -142,6 +164,8 @@ def delete_post(post_id):
     db.session.delete(post)
     db.session.commit()
     flash('Your post has been deleted!', 'success')
+    session["ctx"] = {"request_id": str(uuid.uuid4())}
+    app.logger.info("A user deleted a post >>> %s", session["ctx"])
     return redirect(url_for('home'))
 
 
@@ -153,3 +177,17 @@ def user_posts(username):
         .order_by(Post.date_posted.desc())\
         .paginate(page=page, per_page=5)
     return render_template('user_posts.html', posts=posts, user=user)
+
+@app.after_request
+def logAfterRequest(response):
+
+    app.logger.info(
+        "path: %s | method: %s | status: %s | size: %s >>> %s",
+        request.path,
+        request.method,
+        response.status,
+        response.content_length,
+        session["ctx"],
+    )
+
+    return response
